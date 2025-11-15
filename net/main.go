@@ -17,17 +17,21 @@ func main() {
 	log.Info("found interfaces...")
 
 	for _, iface := range interfaces {
-		log.Info("interface name: ", iface.Name)
-		log.Info("interface addres: ", iface.HardwareAddr)
-
 		addresses, err := iface.Addrs()
 		if err != nil {
 			log.Error("cannot read address", err)
 		}
 
 		for _, address := range addresses {
-			log.Info("network address:", address.String())
+			if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+
+				if ipnet.IP.To4() != nil {
+					log.Info("address::", iface.HardwareAddr.String())
+					log.Info("network ip:", ipnet.IP.To4())
+				}
+			}
 		}
-		log.Info("\n")
 	}
+
+	log.Info("completed.")
 }
