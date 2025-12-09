@@ -1,5 +1,5 @@
 {
-  "cSpell.words": ["charmbracelet", "Mountpoint"],
+  "cSpell.words": ["charmbracelet", "Mountpoint", "strcase"],
   "[go]": {
     "editor.insertSpaces": false,
     "editor.formatOnSave": true,
