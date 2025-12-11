@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/charmbracelet/log"
 	"github.com/ettle/strcase"
@@ -10,16 +11,20 @@ import (
 
 func processFile(arg string) (string, error) {
 	extension := filepath.Ext(arg)
-	log.Info(extension)
-	name := strcase.ToKebab(arg)
+	temp := strings.SplitAfter(arg, ".")
 
-	err := os.Rename(arg, name)
+	log.Info(temp)
+	log.Info(extension)
+	name := strcase.ToKebab(temp[0])
+
+	filename := name + extension
+	err := os.Rename(arg, filename)
 
 	if err != nil {
 		log.Error(err)
 	}
 
-	return name, err
+	return filename, err
 }
 
 func processDirectory(directory []os.DirEntry) {
@@ -27,7 +32,8 @@ func processDirectory(directory []os.DirEntry) {
 		isDir := fileLike.Type().IsDir()
 
 		if isDir {
-			processDirectory(fileLike.Name())
+			log.Info(fileLike.Info())
+			// processDirectory(fileLike.Name())
 		} else {
 			processFile(fileLike.Name())
 		}
@@ -48,7 +54,19 @@ func main() {
 		if err != nil {
 			var name = ""
 			_, err = os.ReadFile(arg)
+
+			if err != nil {
+				log.Error(err)
+				os.Exit(1)
+			}
+
 			name, err = processFile(arg)
+
+			if err != nil {
+				log.Error(err)
+				os.Exit(1)
+			}
+
 			msg := arg + " moved to " + name
 			log.Info(msg)
 		}
