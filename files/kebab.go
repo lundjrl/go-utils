@@ -9,34 +9,74 @@ import (
 	"github.com/ettle/strcase"
 )
 
-func processFile(arg string) (string, error) {
-	extension := filepath.Ext(arg)
-	temp := strings.SplitAfter(arg, ".")
+func renameFile(oldPath string, isDir bool) (string, error) {
+	base := filepath.Base(oldPath)
+	dir := filepath.Dir(oldPath)
 
-	log.Info(temp)
-	log.Info(extension)
-	name := strcase.ToKebab(temp[0])
+	if isDir {
+		name := strcase.ToKebab(base)
+		if name == base {
+			return oldPath, nil
+		}
 
-	filename := name + extension
-	err := os.Rename(arg, filename)
-
-	if err != nil {
-		log.Error(err)
+		path := filepath.Join(dir, name)
+		if err := os.Rename(oldPath, path); err != nil {
+			return "", err
+		}
+		return path, nil
 	}
 
-	return filename, err
+	extension := filepath.Ext(base)
+	baseName := strings.TrimSuffix(base, extension)
+	name := strcase.ToKebab(baseName) + extension
+
+	if name == base {
+		return oldPath, nil
+	}
+
+	path := filepath.Join(dir, name)
+	if err := os.Rename(oldPath, path); err != nil {
+		return "", err
+	}
+
+	return path, nil
 }
 
-func processDirectory(directory []os.DirEntry) {
-	for _, fileLike := range directory {
-		isDir := fileLike.Type().IsDir()
+func processDirectory(dirPath string) error {
+	log.Info("processing directory")
+	entries, err := os.ReadDir(dirPath)
 
-		if isDir {
-			log.Info(fileLike.Info())
-			// processDirectory(fileLike.Name())
+	log.Info(dirPath)
+
+	if err != nil {
+		return err
+	}
+
+	for _, fileLike := range entries {
+		oldPath := filepath.Join(dirPath, fileLike.Name())
+
+		if fileLike.IsDir() {
+			newPath, err := renameFile(oldPath, true)
+			log.Info("after first rename file")
+			handlePossiblyNegatedError(err)
+
+			if err := processDirectory(newPath); err != nil {
+				log.Error(err)
+			}
 		} else {
-			processFile(fileLike.Name())
+			if _, err := renameFile(oldPath, false); err != nil {
+				log.Info("after second rename file")
+				log.Error(err)
+			}
 		}
+	}
+
+	return nil
+}
+
+func handlePossiblyNegatedError(err error) {
+	if err != nil {
+		log.Error(err)
 	}
 }
 
@@ -44,34 +84,33 @@ func processDirectory(directory []os.DirEntry) {
  * Any file/directory passed to this package will be renamed as kebab-case.
  */
 func main() {
-	// TODO: Read file names from argument (file or directory should be passed)
-
 	args := os.Args[1:]
+	if len(args) == 0 {
+		log.Error("Please pass a file/directory name.")
+		os.Exit(0)
+	}
 
 	for _, arg := range args {
-		directory, err := os.ReadDir(arg)
+		fileInfo, err := os.Stat(arg)
+		handlePossiblyNegatedError(err)
 
-		if err != nil {
-			var name = ""
-			_, err = os.ReadFile(arg)
+		log.Info(fileInfo.IsDir())
 
-			if err != nil {
+		if fileInfo.IsDir() {
+			if _, err := renameFile(arg, true); err != nil {
+				log.Info("after third rename file")
 				log.Error(err)
-				os.Exit(1)
+				continue
 			}
-
-			name, err = processFile(arg)
-
-			if err != nil {
+			if err := processDirectory(arg); err != nil {
+				log.Info("last process dir")
 				log.Error(err)
-				os.Exit(1)
 			}
-
-			msg := arg + " moved to " + name
-			log.Info(msg)
+		} else {
+			_, err := renameFile(arg, false)
+			log.Info("after last rename file")
+			handlePossiblyNegatedError(err)
 		}
-
-		processDirectory(directory)
 	}
 
 	log.Info("done.")
